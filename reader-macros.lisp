@@ -9,9 +9,9 @@
 ;;;
 ;;;                       *Reader syntax*
 ;;;
-;;;?expression is read by the LISP reader as (make-pcvar :id expression)
-;;;and prints as ?expression. That is when the LISP reader reads an atom
-;;;starting with a question mark it automaticaly creates a variable and
+;;;?variable is read by the LISP reader as (make-pcvar :id variable)
+;;;and prints as ?variable. That is when the LISP reader reads an atom
+;;;starting with a question mark it automatically creates a variable and
 ;;;stores it in a structure represented by its :id.
 ;;;
 (in-package "PS")
