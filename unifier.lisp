@@ -35,23 +35,48 @@
 ;;;and prints as ?expression. That is when the LISP reader reads an atom
 ;;;starting with a question mark it automaticaly creates a variable and
 ;;;stores it in a structure represented by its :id.
+(defun Print-Pcvar (var stream depth)
+	(declare (ignore depth))
+	(format stream "?~s" (pcvar-id var)))
+
+(defstruct (pcvar (:print-function print-pcvar))
+  (id nil))
+
+(defmethod make-load-form ((obj pcvar) &optional environment)
+  (declare (ignore environment))
+  `(make-pcvar :id ',(pcvar-id obj)))
+
+(defun |?-reader| (stream char)
+  (declare (ignore char))
+  (make-pcvar :id (read stream t nil t)))
+
 ;;;
-;; (eval-when (:compile-toplevel :load-toplevel :execute)
-;;   (defun Print-Pcvar (var stream depth)
-;; 	  (declare (ignore depth))
-;; 	  (format stream "?~s" (pcvar-id var)))
+;;;Macro character definition for !.
+;;;When the LISP reader reads the character ! it forces the next expression
+;;;to be evaluated.
+;;;Eg. !test --> (eval test)
 
-;;   (defstruct (pcvar (:print-function print-pcvar)) id)
+(defun |!-reader| (stream char)
+  (declare (ignore char))
+  (list 'eval (read stream t nil t)))
 
-;;   (set-macro-character #\?
-;; 	                     #'(lambda (stream char)
-;; 		                       (make-pcvar :id (read stream char))) t))
+(defvar *previous-readtables* nil)
+
+(defmacro enable-reader-macros ()
+  '(eval-when (:compile-toplevel :load-toplevel :execute)
+    (push *readtable* *previous-readtables*)
+    (setq *readtable* (copy-readtable))
+    (set-macro-character #\? '|?-reader|)
+    (set-macro-character #\! '|!-reader|)))
+
+(defmacro disable-reader-macros ()
+  '(eval-when (:compile-toplevel :load-toplevel :execute)
+    (setq *readtable* (pop *previous-readtables*))))
 
 ;;;
 ;;;(Unify-1 pattern1 pattern2 substitution) returns a list of zero or one
 ;;;extensions to the sabstitutions that unifies the two patterns.
 ;;;
-
 (defun Unify-1 (pat1 pat2 sub)
 	(cond ((pcvar-p pat1)
 	       (var-unify pat1 pat2 sub))
@@ -61,10 +86,8 @@
 	       (cond ((eql pat1 pat2) (list sub))
 		           (t nil)))
 	      ((atom pat2) nil)
-	      (t (for (sub :in
-			               (unify-1 (car pat1) (car pat2) sub))
-		            :splice
-		            (unify-1 (cdr pat1) (cdr pat2) sub)))))
+	      (t (for (sub :in     (unify-1 (car pat1) (car pat2) sub))
+		           :splice (unify-1 (cdr pat1) (cdr pat2) sub)))))
 
 ;;;                          *Main procedure*
 ;;;
@@ -76,16 +99,13 @@
 ;;;and an empty substitution list that is to store the substitution if the
 ;;;two patterns are unified or nill when the two pattern cannot be unified.
 ;;;
-
 (defun Unify (pat1 pat2)
 	(unify-1 pat1 pat2 nil))
-
 
 ;;;
 ;;;(Var-Unify variable pattern substitution) returns a list of zero or one
 ;;;extension to the substitution that unifies the variable with the pattern.
 ;;;
-
 (defun Var-Unify (pcvar pat sub)
 	(cond ((or (eql pcvar pat)
 		         (and (pcvar-p pat)
@@ -99,16 +119,14 @@
 				                 (occurs-in-p pcvar pat sub))
 			              nil)
 			             (t (list
-				               (extend-binding pcvar pat sub))))))))
+				               (extend-binding pcvar pat sub))))))))+
 
 (defvar *Occurs-Check-P* t)
-
 
 ;;;
 ;;;(Occurs-In-P variable pattern substitution) returns true if the variable
 ;;;occurs in the pattern otherwise it returns nill.
 ;;;
-
 (defun Occurs-In-P (pcvar pat sub)
 	(cond ((pcvar-p pat)
 	       (or (eq (pcvar-id pcvar) (pcvar-id pat))
@@ -120,29 +138,23 @@
 	      (t (or (occurs-in-p pcvar (car pat) sub)
 		           (occurs-in-p pcvar (cdr pat) sub)))))
 
-
 ;;;
 ;;;(Pcvar-Binding variable substitution) returns the current binding of the
 ;;;variable, in the form (variable value), or else it returns nill.
 ;;;
-
 (defun Pcvar-Binding (pcvar alist)
 	(assoc (pcvar-id pcvar) alist))
-
 
 ;;;
 ;;;(Extend-Binding variable pattern substitution) adds the form (variable
 ;;;value) to the substitution and returns the new list.
 ;;;
-
 (defun Extend-Binding (pcvar pat alist)
 	(cons (list (pcvar-id pcvar) pat) alist))
-
 
 ;;;
 ;;;(Binding-Value binding) returns the actual binding of the variable
 ;;;
-
 (defun Binding-Value (binding) (cadr binding))
 
 ;;;*END-OF-FILE*;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
