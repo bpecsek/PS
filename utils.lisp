@@ -56,7 +56,7 @@ This carries the function name which makes the error message more useful."))
     (,(if (subtypep type '(or symbol number character)) 'defconstant 'defvar)
      ,name (the ,type ,init) ,doc)))
 
-(defmacro mk-arr (type init &optional len)
+(defmacro mk-array (type init &optional len)
   "Make array with elements of TYPE, initializing."
   (if len `(make-array ,len :element-type ,type :initial-element ,init)
       `(make-array (length ,init) :element-type ,type
@@ -99,73 +99,9 @@ Inspired by Paul Graham, <On Lisp>, p. 145."
   #-(or allegro clisp cmu cormanlisp gcl lispworks lucid sbcl)
   (error 'not-implemented :proc (list 'quit code)))
 
-(defconst +eof+ cons (list '+eof+)
-  "*The end-of-file object.
-To be passed as the third arg to `read' and checked against using `eq'.")
-
-(defun eof-p (stream)
-  "Return T if the stream has no more data in it."
-  (null (peek-char nil stream nil nil)))
-
-(defun string-tokens (string &key (start 0) max)
-  "Read from STRING repeatedly, starting with START, up to MAX tokens.
-Return the list of objects read and the final index in STRING.
-Binds `*package*' to the keyword package,
-so that the bare symbols are read as keywords."
-  (declare (type (or null fixnum) max) (type fixnum start))
-  (let ((*package* (find-package :keyword)))
-    (if max
-        (do ((beg start) obj res (num 0 (1+ num)))
-            ((= max num) (values (nreverse res) beg))
-          (declare (fixnum beg num))
-          (setf (values obj beg)
-                (read-from-string string nil +eof+ :start beg))
-          (if (eq obj +eof+)
-              (return (values (nreverse res) beg))
-              (push obj res)))
-        (read-from-string (concatenate 'string "(" string ")")
-                          t nil :start start))))
-
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (progn
     (proclaim '(ftype (function () nil) required-argument))
     (defun required-argument ()
       "A useful default for required arguments and DEFSTRUCT slots."
       (error "A required argument was not supplied."))))
-
-;;;
-;;; Function Compositions
-;;;
-
-(defmacro compose (&rest functions)
-  "Macro: compose functions or macros of 1 argument into a lambda.
-E.g., (compose abs (dl-val zz) 'key) ==>
-  (lambda (yy) (abs (funcall (dl-val zz) (funcall key yy))))"
-  (labels ((rec (xx yy)
-             (let ((rr (list (car xx) (if (cdr xx) (rec (cdr xx) yy) yy))))
-               (if (consp (car xx))
-                   (cons 'funcall (if (eq (caar xx) 'quote)
-                                      (cons (cadar xx) (cdr rr)) rr))
-                   rr))))
-    (with-gensyms ("COMPOSE-" arg)
-      (let ((ff (rec functions arg)))
-        `(lambda (,arg) ,ff)))))
-
-#|
-(defun compose-f (&rest functions)
-  "Return the composition of all the arguments.
-All FUNCTIONS should take one argument, except for
-the last one, which can take several."
-  (reduce (lambda (f0 f1)
-            (declare (function f0 f1))
-            (lambda (&rest args) (funcall f0 (apply f1 args))))
-          functions :initial-value #'identity))
-
-(defun compose-all (&rest functions)
-  "Return the composition of all the arguments.
-All the values from nth function are fed to the n-1th."
-  (reduce (lambda (f0 f1)
-            (declare (function f0 f1))
-            (lambda (&rest args) (multiple-value-call f0 (apply f1 args))))
-          functions :initial-value #'identity))
-|#
