@@ -15,7 +15,7 @@
   :depends-on ("kr")
   :serial t
   :components ((:file "packages")
-               (:file "reader-macros")
+               ;(:file "reader-macros")
                (:file "utils")
                (:file "for")
                (:file "unifier")
